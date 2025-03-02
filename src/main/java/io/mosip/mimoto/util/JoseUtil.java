@@ -4,6 +4,8 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -27,6 +29,8 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.security.*;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
@@ -130,34 +134,114 @@ public class JoseUtil {
         return responseWrapper;
     }
 
-    public String getJWT(String clientId, String keyStorePath, String fileName, String alias, String cyptoPassword, String audience) throws IssuerOnboardingException, IOException {
+//     public String getJWT(String clientId, String keyStorePath, String fileName, String alias, String cyptoPassword, String audience)
+//         throws IssuerOnboardingException, IOException {
 
-        Map<String, Object> header = new HashMap<>();
-        header.put("alg", ALG_RS256);
+//     Map<String, Object> header = new HashMap<>();
+//     header.put("alg", ALG_RS256);
 
-        String keyStorePathWithFileName = keyStorePath + fileName;
-        Date issuedAt = Date.from(Instant.now());
-        Date expiresAt = Date.from(Instant.now().plusMillis(120000));
-        RSAPrivateKey privateKey = null;
-        try {
-            KeyStore.PrivateKeyEntry privateKeyEntry = cryptoCoreUtil.loadP12(keyStorePathWithFileName, alias, cyptoPassword);
-            if(privateKeyEntry == null){
-                throw new IssuerOnboardingException("Private Key Entry is Missing for the alias " + alias);
-            }
-            privateKey = (RSAPrivateKey) privateKeyEntry.getPrivateKey();
-        } catch (IOException e) {
-           log.error("Exception happened while loading the p12 file for invoking token call.");
-           throw e;
+//     String keyStorePathWithFileName = keyStorePath + fileName;
+//     Date issuedAt = Date.from(Instant.now());
+//     Date expiresAt = Date.from(Instant.now().plusMillis(120000));
+//     RSAPrivateKey privateKey = null;
+//     RSAPublicKey publicKey = null;
+    
+//     try {
+//         KeyStore.PrivateKeyEntry privateKeyEntry = cryptoCoreUtil.loadP12(keyStorePathWithFileName, alias, cyptoPassword);
+//         if (privateKeyEntry == null) {
+//             throw new IssuerOnboardingException("Private Key Entry is Missing for the alias " + alias);
+//         }
+//         privateKey = (RSAPrivateKey) privateKeyEntry.getPrivateKey();
+//         publicKey = (RSAPublicKey) privateKeyEntry.getCertificate().getPublicKey();
+
+//         // Logging key details
+//         log.info("Private Key Algorithm: {}", privateKey.getAlgorithm());
+//         log.info("Private Key Format: {}", privateKey.getFormat());
+//         log.info("Public Key Algorithm: {}", publicKey.getAlgorithm());
+//         log.info("Public Key Format: {}", publicKey.getFormat());
+        
+//         // Create JWK representation using Nimbus JOSE JWT library
+//         RSAKey jwk = new RSAKey.Builder(publicKey)
+//                 .privateKey(privateKey)
+//                 .keyID(alias)  // using alias as key ID for identification
+//                 .build();
+//         log.info("JWK Private Key: {}", jwk.toJSONString());
+        
+//     } catch (IOException e) {
+//         log.error("Exception happened while loading the p12 file for invoking token call.", e);
+//         throw e;
+//     }
+    
+//     return JWT.create()
+//             .withHeader(header)
+//             .withIssuer(clientId)
+//             .withSubject(clientId)
+//             .withAudience(audience)
+//             .withExpiresAt(expiresAt)
+//             .withIssuedAt(issuedAt)
+//             .sign(Algorithm.RSA256(null, privateKey));
+// }
+
+
+public String getJWT(String clientId, String keyStorePath, String fileName, String alias, String cyptoPassword, String audience)
+        throws IssuerOnboardingException, IOException {
+
+    // Set the JWT header with ES256 algorithm, type, and key ID.
+    Map<String, Object> header = new HashMap<>();
+    header.put("alg", "ES256");
+    header.put("typ", "JWT");
+    header.put("kid", "my-sig-key"); 
+    //header.put("kid", alias); 
+
+    String keyStorePathWithFileName = keyStorePath + fileName;
+    Date issuedAt = Date.from(Instant.now());
+    Date expiresAt = Date.from(Instant.now().plusMillis(120000));
+
+    // Use EC key types instead of RSA.
+    ECPrivateKey privateKey;
+    ECPublicKey publicKey;
+    
+    try {
+        log.info(keyStorePathWithFileName);
+        log.info(alias);
+        log.info(cyptoPassword);
+        KeyStore.PrivateKeyEntry privateKeyEntry = cryptoCoreUtil.loadP12(keyStorePathWithFileName, alias, cyptoPassword);
+        if (privateKeyEntry == null) {
+            throw new IssuerOnboardingException("Private Key Entry is Missing for the alias " + alias);
         }
-        return JWT.create()
-                .withHeader(header)
-                .withIssuer(clientId)
-                .withSubject(clientId)
-                .withAudience(audience)
-                .withExpiresAt(expiresAt)
-                .withIssuedAt(issuedAt)
-                .sign(Algorithm.RSA256(null, privateKey));
+        // Cast the loaded keys to EC key types.
+        privateKey = (ECPrivateKey) privateKeyEntry.getPrivateKey();
+        publicKey = (ECPublicKey) privateKeyEntry.getCertificate().getPublicKey();
+
+        // Log key details for debugging.
+        log.info("Private Key Algorithm: {}", privateKey.getAlgorithm());
+        log.info("Private Key Format: {}", privateKey.getFormat());
+        log.info("Public Key Algorithm: {}", publicKey.getAlgorithm());
+        log.info("Public Key Format: {}", publicKey.getFormat());
+        
+        // Create an EC JWK using Nimbus JOSE JWT library.
+        ECKey jwk = new ECKey.Builder(Curve.P_256, publicKey)
+                .privateKey(privateKey)
+                .keyID(alias)
+                .build();
+        log.info("JWK Private Key: {}", jwk.toJSONString());
+        
+    } catch (IOException e) {
+        log.error("Exception while loading the p12 file for invoking token call.", e);
+        throw e;
     }
+    
+    // Create and sign the JWT using ES256.
+    return JWT.create()
+            .withHeader(header)
+            .withIssuer(clientId)
+            .withSubject(clientId)
+            .withAudience(audience)
+            .withIssuedAt(issuedAt)
+            .withExpiresAt(expiresAt)
+            .sign(Algorithm.ECDSA256(publicKey, privateKey));
+}
+
 
     public String generateJwt(String audience, String clientId, String accessToken) throws Exception {
 

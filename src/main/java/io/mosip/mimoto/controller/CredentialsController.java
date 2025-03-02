@@ -60,9 +60,20 @@ public class CredentialsController {
             String credentialType = params.get("credential");
             String credentialValidity = params.get("vcStorageExpiryLimitInTimes");
 
-            log.info("Initiated Token Call");
-            TokenResponseDTO response = credentialService.getTokenResponse(params, issuerId);
+            // log.info("Initiated Token Call");
+            // TokenResponseDTO response = credentialService.getTokenResponse(params, issuerId);
 
+            
+        //     String authCode = params.get("code");
+        // String codeVerifier = params.get("code_verifier");
+        // String state = params.get("state");
+            log.info("Initiating Singpass token request");
+            log.info("Received parameters: {}", params.toString());
+
+            // Call Singpass token API
+            //TokenResponseDTO tokenResponse = credentialService.getSingpassToken(authCode, codeVerifier, state);
+            TokenResponseDTO response = credentialService.getTokenResponse(params, issuerId);
+            log.info(response.getAccess_token());
             log.info("Initiated Download Credential Call");
             ByteArrayInputStream inputStream = credentialService.downloadCredentialAsPDF(issuerId, credentialType, response, credentialValidity);
 
